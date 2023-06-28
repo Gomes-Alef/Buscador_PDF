@@ -1,11 +1,9 @@
 from PyPDF2 import PdfReader
 import spacy
 from tkinter import *
-from tkinter import ttk
 from tkinter import filedialog
 from tkinter import messagebox
 from docx import Document
-
 
 root = Tk()
 vetor_palavrasChave = []
@@ -51,7 +49,7 @@ class Funcs():
             return ' '.join(results).lower()
 
     def busca_texto_pdf(self):
-        self.resultadoBusca.delete("1.0", END)
+        self.resultadoBusca.delete(1.0, END)
 
         self.textoCompleto = self.extrair_texto_pdf()
 
@@ -66,46 +64,30 @@ class Funcs():
         for token in self.doc:
             if token.text in self.palavras_chaves:
                 span = self.doc[token.i: token.i + 1].sent
-                pagina = self.obter_pagina(token.i)
-                self.encontrados.append((span.text, pagina))
+                self.encontrados.append(span.text)
 
         if self.encontrados:
-            self.resultadoBusca.insert(END, "Palavra Chave\tPágina\n")
-            self.resultadoBusca.insert(END, "------------------\t-------\n")
-            for span, pagina in self.encontrados:
-                self.resultadoBusca.insert(END, f"{span}\t{pagina}\n")
+            for span in self.encontrados:
+                self.resultadoBusca.insert(END, span + '\n')
+            self.realcar_palavras_chave()
             self.salvar_arquivo()
-            messagebox.showinfo("Sucesso", "Arquivo de texto salvo com sucesso!")
         else:
-            messagebox.showerror("Erro", "Nenhuma palavra chave encontrada!")
+            messagebox.showinfo("Sem retorno!", "Nenhuma palavra-chave pode ser encontrada!")
 
-    def obter_pagina(self, indice_token):
-        with open(self.caminho_arquivo, "rb") as arquivo_texto:
-            reader = PdfReader(arquivo_texto)
-            for i, page in enumerate(reader.pages):
-                if page.start <= indice_token < page.end:
-                    return i + 1
-        return None
+    def realcar_palavras_chave(self):
+        texto = self.resultadoBusca.get("1.0", "end-1c")
+        palavras_chave = vetor_palavrasChave
 
-    def salvar_arquivo(self):
-        arquivo = filedialog.asksaveasfile(defaultextension=".docx", filetypes=[("Arquivo DOCX", "*.docx")])
-
-        if arquivo:
-            nome_arquivo = arquivo.name
-
-            document = Document()
-            document.add_heading("Resultados da busca", level=1)
-
-            for span, pagina in self.encontrados:
-                paragrafo = document.add_paragraph()
-                paragrafo.add_run("Palavra-chave: ").bold = True
-                paragrafo.add_run(span)
-                paragrafo.add_run(" encontrada em: ").bold = True
-                paragrafo.add_run(f"Token: {span}, Página: {pagina}")
-
-            document.save(nome_arquivo)
-
-            messagebox.showinfo("Sucesso", "Arquivo de texto salvo com sucesso!")
+        for palavra_chave in palavras_chave:
+            start_index = '1.0'
+            while True:
+                start_index = self.resultadoBusca.search(palavra_chave, start_index, stopindex="end-1c")
+                if not start_index:
+                    break
+                end_index = f"{start_index}+{len(palavra_chave)}c"
+                self.resultadoBusca.tag_add("bold", start_index, end_index)
+                self.resultadoBusca.tag_config("bold", font=("Helvetica", 14, "bold"))
+                start_index = end_index
 
 
 class Application(Funcs):
@@ -117,6 +99,7 @@ class Application(Funcs):
         self.frames_da_tela()
         self.widgets_frame1()
         self.result_frame2()
+
         root.mainloop()
 
     def tela(self):
@@ -180,7 +163,7 @@ class Application(Funcs):
         self.bt_limpar.place(relx=0.87, rely=0.28, relwidth=0.1, relheight=0.13)
 
     def result_frame2(self):
-        self.resultadoBusca = Text(self.frame_2, bg='#d2dde0', font=('Helvetica', 11))
+        self.resultadoBusca = Text(self.frame_2, bg='#d2dde0', font=('Helvetica', 12))
         self.resultadoBusca.place(relx=0.01, rely=0.01, relwidth=0.95, relheight=0.95)
 
         self.scroolResultado = Scrollbar(self.frame_2, orient='vertical', command=self.resultadoBusca.yview)
@@ -233,26 +216,42 @@ class Application(Funcs):
         if self.encontrados:
             for span in self.encontrados:
                 self.resultadoBusca.insert(END, span + '\n')
+            self.realcar_palavras_chave()
             self.salvar_arquivo()
         else:
             messagebox.showinfo("Sem retorno!", "Nenhuma palavra-chave pode ser encontrada!")
 
-    ##Exibe a caixa de diálogo de salvamento de arquivo
+    def realcar_palavras_chave(self):
+        texto = self.resultadoBusca.get("1.0", "end-1c")
+        palavras_chave = vetor_palavrasChave
+
+        for palavra_chave in palavras_chave:
+            start_index = '1.0'
+            while True:
+                start_index = self.resultadoBusca.search(palavra_chave, start_index, stopindex="end-1c")
+                if not start_index:
+                    break
+                end_index = f"{start_index}+{len(palavra_chave)}c"
+                self.resultadoBusca.tag_add("bold", start_index, end_index)
+                self.resultadoBusca.tag_config("bold", font=("Helvetica", 12, "bold"))
+                start_index = end_index
+
     def salvar_arquivo(self):
-        arquivo = filedialog.asksaveasfile(defaultextension=".docx", filetypes=[("Arquivo DOCX", "*.docx")])
-
-        if arquivo:
-            nome_arquivo = arquivo.name
-
+        try:
             document = Document()
-            document.add_heading("Resultados da busca", level=1)
-
+            document.add_heading('Palavras-Chave Encontradas:', 0)
             for span in self.encontrados:
                 document.add_paragraph(span)
 
-            document.save(nome_arquivo)
-
-            messagebox.showinfo("Sucesso", "Arquivo de texto salvo com sucesso!")
+            caminho_arquivo = self.caminho.get().split('/')
+            nome_arquivo = caminho_arquivo[-1].split('.pdf')[0]
+            caminho_salvar = filedialog.asksaveasfilename(initialfile=nome_arquivo, defaultextension=".docx",
+                                                          filetypes=[("Documento Word", "*.docx")])
+            if caminho_salvar:
+                document.save(caminho_salvar)
+                messagebox.showinfo("Arquivo Salvo!", "O arquivo foi salvo com sucesso!")
+        except Exception as e:
+            messagebox.showinfo("Erro ao salvar arquivo", f"Ocorreu um erro ao salvar o arquivo: {str(e)}")
 
 
 Application()
